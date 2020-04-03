@@ -11,24 +11,10 @@ const EXPORT_BUTTON_CLASS = "exportbutton";
 const FILE_NAME = "games.txt";
 const FILE_MIME_TYPE = "text/plain";
 
-class Platform {
-    constructor(name) {
-        this.name = name;
-        this.games = [];
-    }
-  
-    addGame(game) {
-        this.games.push(game);
-    }
-
-    getGames() {
-        return Array.from(this.games);
-    }
-}
-
 class Game {
-    constructor(name) {
+    constructor(name, platform) {
         this.name = name;
+        this.platform = platform;
     }
 }
 
@@ -76,54 +62,58 @@ function generateAndDownloadFile() {
 }
 
 function generateFileContent() {
-    const platforms = parsePlatforms();
-    const rows = generateFileRowsFromPlatforms(platforms);
+    const mainColumn = document.getElementById("maincolumn");
+    const games = parseGames(mainColumn);
+    const rows = generateFileRowsFromGames(games);
     return rows.join("\n");
 }
 
-function parsePlatforms() {
+function parseGames(rootElement, latestPlatform) {
     let listElement =
-        document.querySelector("#maincolumn .system") ||
-        document.querySelector("#maincolumn .gamebox");
+        rootElement.getElementsByClassName("system")[0] ||
+        rootElement.getElementsByClassName("gamebox")[0];
     if (!listElement) {
         return [];
     }
     let list = listElement.parentElement;
     const children = list.children;
-    const platforms = [];
-    let latestPlatform = null;
+    let games = [];
+    latestPlatform = latestPlatform === undefined ? null : latestPlatform;
     for (const child of children) {
         const childClasses = child.classList;
         if (childClasses.contains("system")) {
             const platformName = child.innerText.trim();
-            const platform = new Platform(platformName);
-            platforms.push(platform);
-            latestPlatform = platform;
+            latestPlatform = platformName;
         } else if (childClasses.contains("gamebox") && !childClasses.contains("systemend")) {
             if (!latestPlatform) {
                 throw new Error("A game is not under a platform section.");
             }
             const gameName = child.getElementsByTagName("h2")[0].innerText.replace("▼", "").trim();
-            const game = new Game(gameName);
-            latestPlatform.addGame(game);
+            const game = new Game(gameName, latestPlatform);
+            games.push(game);
+        } else if (child.id?.startsWith("output")) {
+            const subGames = parseGames(child, latestPlatform);
+            games = games.concat(subGames);
         } else {
             // unknown element type
         }
     }
-    return platforms;
+    return games;
 }
 
-function generateFileRowsFromPlatforms(platforms) {
+function generateFileRowsFromGames(games) {
     const rows = [];
     rows.push("# Games");
-    for (const platform of platforms) {
-        rows.push("");
-        rows.push(`## ${platform.name}`);
-        rows.push("");
-        const games = platform.getGames();
-        for (const game of games) {
-            rows.push(`- ${game.name}`);
+    let latestPlatform = null;
+    for (const game of games) {
+        const platform = game.platform;
+        if (platform !== latestPlatform) {
+            rows.push("");
+            rows.push(`## ${platform}`);
+            rows.push("");
+            latestPlatform = platform;
         }
+        rows.push(`- ${game.name}`);
     }
     return rows;
 }
